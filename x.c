@@ -318,6 +318,7 @@ void
 zoomabs(const Arg *arg)
 {
 	#if SIXEL_PATCH
+	int i;
 	ImageList *im;
 	#endif // SIXEL_PATCH
 
@@ -328,14 +329,16 @@ zoomabs(const Arg *arg)
 	#endif // FONT2_PATCH
 
 	#if SIXEL_PATCH
-	/* deleting old pixmaps forces the new scaled pixmaps to be created */
-	for (im = term.images; im; im = im->next) {
-		if (im->pixmap)
-			XFreePixmap(xw.dpy, (Drawable)im->pixmap);
-		if (im->clipmask)
-			XFreePixmap(xw.dpy, (Drawable)im->clipmask);
-		im->pixmap = NULL;
-		im->clipmask = NULL;
+	/* delete old pixmaps so that xfinishdraw() can create new scaled ones */
+	for (im = term.images, i = 0; i < 2; i++, im = term.images_alt) {
+		for (; im; im = im->next) {
+			if (im->pixmap)
+				XFreePixmap(xw.dpy, (Drawable)im->pixmap);
+			if (im->clipmask)
+				XFreePixmap(xw.dpy, (Drawable)im->clipmask);
+			im->pixmap = NULL;
+			im->clipmask = NULL;
+		}
 	}
 	#endif // SIXEL_PATCH
 
@@ -3177,6 +3180,12 @@ xfinishdraw(void)
 		/* do not draw or process the image, if it is not visible */
 		if (im->x >= term.col || im->y >= term.row || im->y < 0)
 			continue;
+
+		#if KEYBOARDSELECT_PATCH && REFLOW_PATCH
+		/* do not draw the image on the search bar */
+		if (im->y == term.row-1 && IS_SET(MODE_KBDSELECT) && kbds_issearchmode())
+			continue;
+		#endif // KEYBOARDSELECT_PATCH
 
 		/* scale the image */
 		width = MAX(im->width * win.cw / im->cw, 1);
